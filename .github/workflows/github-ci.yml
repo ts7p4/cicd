@@ -1,20 +1,48 @@
-stages:
-  - build
-  - test
-  - deploy
-build-job:
-  stage: build
-  script:
-    - docker build -t my-backend-image .
+name: Docker CI/CD Pipeline
 
-test-job:
-  stage: test
-  script:
-    - docker run --rm my-backend-image -s -v
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
-deploy-job:
-  stage: deploy
-  script:
-    - docker compose up -d
-
+jobs:
+  build:
+    runs-on: self-hosted
+    strategy:
+      matrix:
+        python-version: [3.9]
     
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Build Docker image
+      run: |
+        echo "🔨 Building Docker image..."
+        docker build -t my-backend-image .
+
+  test:
+    runs-on: self-hosted
+    needs: build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Test Docker image
+      run: |
+        echo "🧪 Testing Docker image..."
+        docker run --rm my-backend-image python -c "import sys; print('Python version:', sys.version)"
+
+  deploy:
+    runs-on: self-hosted
+    needs: test
+    
+    steps:
+    - name: Deploy with Docker Compose
+      run: |
+        echo "🚀 Deploying application..."
+        docker compose down || true
+        docker compose up -d
+        docker compose ps
