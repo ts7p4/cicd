@@ -1,0 +1,74 @@
+name: FastAPI CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: self-hosted
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Run tests
+      run: |
+        python -m pytest test_api.py -v
+
+  build:
+    runs-on: self-hosted
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Build Docker image
+      run: |
+        echo "🔨 Building Docker image..."
+        docker build -t my-backend-image .
+        
+    - name: Test Docker image
+      run: |
+        echo "🧪 Testing Docker image..."
+        docker run -d --name test-container -p 8000:8000 my-backend-image
+        sleep 5
+        curl -f http://localhost:8000/ || echo "Container test failed"
+        docker stop test-container
+        docker rm test-container
+
+  deploy:
+    runs-on: self-hosted
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Deploy application
+      run: |
+        echo "🚀 Deploying application..."
+        docker compose down || true
+        docker compose up -d --build
+        sleep 10
+        docker compose ps
+        
+    - name: Health check
+      run: |
+        echo "🏥 Health checking..."
+        curl -f http://localhost:80/ || exit 1
+        echo "✅ Application is running successfully!"
